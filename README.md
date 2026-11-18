@@ -4,6 +4,8 @@
 
 你负责说清楚想做什么，Agent 负责把环境、代码、设备和结果真正跑起来。
 
+仓库同步发布在 [GitHub](https://github.com/liuying-cell/HarmonyOSCapability) 和 [Gitee](https://gitee.com/liumengjiao-liuying/HarmonyOSCapability)。
+
 ## 能力范围
 
 - 识别当前 HarmonyOS 工程、SDK、模块、设备和签名状态。
@@ -38,6 +40,16 @@ git clone https://github.com/liuying-cell/HarmonyOSCapability.git "$env:USERPROF
 
 ```bash
 git clone https://github.com/liuying-cell/HarmonyOSCapability.git "$HOME/.codex/skills/harmonyos-capabilities"
+```
+
+### 从 Gitee 安装
+
+```powershell
+git clone https://gitee.com/liumengjiao-liuying/HarmonyOSCapability.git "$env:USERPROFILE\.codex\skills\harmonyos-capabilities"
+```
+
+```bash
+git clone https://gitee.com/liumengjiao-liuying/HarmonyOSCapability.git "$HOME/.codex/skills/harmonyos-capabilities"
 ```
 
 目标目录必须名为 `harmonyos-capabilities`，并且直接包含 `SKILL.md`。安装后重新打开 Codex 或新建一个线程，让技能目录重新加载。
