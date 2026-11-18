@@ -92,7 +92,7 @@ npm root -g
 │   └── upstream-sources.md
 ├── scripts/search_kb.py
 ├── tests/
-└── .github/workflows/validate.yml
+└── ci/github-actions-validate.yml
 ```
 
 本仓库不携带 DevEco CLI 二进制、HarmonyOS SDK、`docs.zip` 或 `index.zip`。离线文档由用户本机安装的上游包提供。
@@ -106,6 +106,8 @@ python -X utf8 scripts/search_kb.py --help
 ```
 
 发布技能前还建议运行 Codex `skill-creator` 提供的 `quick_validate.py`。
+
+`ci/github-actions-validate.yml` 是可选的 GitHub Actions 模板。维护者拥有 `workflow` 权限后，可将其复制到 `.github/workflows/validate.yml` 启用自动验证。
 
 欢迎通过 Issue 报告版本变化、命令失效或文档与运行时不一致。提交修复时请附上 `devecocli --version`、`deveco --version` 和实际命令输出中的非敏感部分。
 

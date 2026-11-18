@@ -1,3 +1,5 @@
+# Enable this workflow by moving it to .github/workflows/validate.yml in a
+# repository whose maintainer credential has the GitHub workflow scope.
 name: validate
 
 on:
