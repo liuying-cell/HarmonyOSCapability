@@ -1,6 +1,6 @@
 interface:
-  display_name: "鸿蒙能力"
-  short_description: "HarmonyOS 开发、构建、设备调试与知识检索"
+  display_name: "HarmonyOSCapability Skill - Agent鸿蒙能力"
+  short_description: "不止生成代码：直接构建、操控模拟器、调试并查看日志"
   brand_color: "#3B82F6"
   default_prompt: "使用 $harmonyos-capabilities 检查鸿蒙工程环境并完成当前开发、构建或文档检索任务。"
 

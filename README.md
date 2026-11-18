@@ -1,8 +1,8 @@
-# HarmonyOS Capability Skill
+# HarmonyOSCapability Skill - Agent鸿蒙能力
 
-面向 Codex 的 HarmonyOS NEXT 开发技能，集中整理 DevEco CLI、DevEco Code、ArkTS、ArkUI、设备调试、UI 验证和离线文档检索中真正影响操作决策的信息。
+不止是让 Agent 为你生成代码，直接让它操控你的模拟器，自行调试与查看日志。检查工程、构建安装、操作界面、排查问题、翻本地鸿蒙文档，都可以一句话交给它。
 
-这是一个社区项目，不是华为、HarmonyOS 或 OpenHarmony 官方项目。
+你负责说清楚想做什么，Agent 负责把环境、代码、设备和结果真正跑起来。
 
 ## 能力范围
 
