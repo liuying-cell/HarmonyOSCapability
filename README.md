@@ -68,11 +68,18 @@ git -C "$env:USERPROFILE\.codex\skills\harmonyos-capabilities" pull --ff-only
 $harmonyos-capabilities 检查当前鸿蒙工程的环境、模块配置和可用设备，然后执行 ArkTS 检查。不要部署。
 ```
 
+从 Skill 根目录运行以下只读预检，将 `<project>` 替换为工程路径。环境诊断包含 CLI、离线文档和设备状态。工程快照汇总产品、SDK 和模块配置。只检查工具链时可给 `doctor.py` 加 `--skip-devices`。
+
+```powershell
+python scripts/doctor.py --project "<project>" --format json
+python scripts/project_snapshot.py --project "<project>" --format json
+```
+
 离线文档检索示例：
 
 ```powershell
 python scripts/search_kb.py -k "RelationalStore"
-python scripts/search_kb.py -k "页面" "Page" --mode both
+python scripts/search_kb.py -k "页面" "Page" --mode both --format json
 python scripts/search_kb.py -k "ArkTS" --docs-path "<PATH>/docs.zip" --index-path "<PATH>/index.zip"
 ```
 
@@ -101,8 +108,15 @@ npm root -g
 ├── references/
 │   ├── devecocli-1.3.12-current.md
 │   ├── knowledge-base.md
-│   └── upstream-sources.md
-├── scripts/search_kb.py
+│   ├── upstream-sources.md
+│   ├── versions.md
+│   └── workflows/
+├── scripts/
+│   ├── doctor.py
+│   ├── project_snapshot.py
+│   ├── search_kb.py
+│   └── validate_skill.py
+├── evals/cases.json
 ├── tests/
 └── .github/workflows/validate.yml
 ```
@@ -113,11 +127,12 @@ npm root -g
 
 ```powershell
 python -m unittest discover -s tests -v
-python -m py_compile scripts/search_kb.py
+python -m compileall -q scripts
+python scripts/validate_skill.py
 python -X utf8 scripts/search_kb.py --help
 ```
 
-发布技能前还建议运行 Codex `skill-creator` 提供的 `quick_validate.py`。
+[行为评估用例](evals/cases.json)用于检查 Agent 是否选对工作流、执行了所需步骤并准确报告证据。仓库测试校验用例结构，实际行为需在 Agent 会话中观察。
 
 欢迎通过 Issue 报告版本变化、命令失效或文档与运行时不一致。提交修复时请附上 `devecocli --version`、`deveco --version` 和实际命令输出中的非敏感部分。
 

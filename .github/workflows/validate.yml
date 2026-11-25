@@ -10,7 +10,10 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Check out repository
@@ -21,8 +24,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Compile search helper
-        run: python -m py_compile scripts/search_kb.py
+      - name: Compile skill helpers
+        run: python -m compileall -q scripts
+
+      - name: Validate skill
+        run: python scripts/validate_skill.py
 
       - name: Show helper usage
         run: python scripts/search_kb.py --help

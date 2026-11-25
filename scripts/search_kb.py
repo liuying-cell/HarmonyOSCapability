@@ -21,6 +21,7 @@
 import argparse
 import functools
 import glob
+import json
 import os
 import re
 import shutil
@@ -29,6 +30,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from contextlib import closing
 
 
 @functools.lru_cache(maxsize=1)
@@ -111,10 +113,6 @@ def _resolve_resource(filename, env_name):
     return None
 
 
-DEFAULT_DOCS = _resolve_resource("docs.zip", "DEVECO_CLI_DOCS")
-DEFAULT_INDEX = _resolve_resource("index.zip", "DEVECO_CLI_INDEX")
-
-
 def _decode(b):
     for enc in ("utf-8", "gbk", "gb18030"):
         try:
@@ -135,10 +133,11 @@ def _fix_name(name):
     return _decode(raw)
 
 
-def search_zip(docs_path, keywords, limit, max_files, context):
+def search_zip(docs_path, keywords, limit, max_files, context, as_json=False):
+    result = {"source": "zip", "docs_path": docs_path, "keywords": keywords,
+              "result_count": 0, "results": []}
     if not docs_path or not os.path.isfile(docs_path):
-        print("[zip] 未找到 docs.zip。请设置 DEVECO_CLI_DOCS 或传入 --docs-path。")
-        return
+        return search_error(result, "未找到 docs.zip。请设置 DEVECO_CLI_DOCS 或传入 --docs-path。", as_json)
     hits = []  # (relpath, [(lineno, snippet), ...])
     # 注：zip 未置 UTF-8 标志，Python 默认用 cp437 解码中文文件名会产生乱码
     # （如 "APIσÅéΦÇâ"）。cp437 是字节到字符的 1:1 映射，可逆；
@@ -162,12 +161,27 @@ def search_zip(docs_path, keywords, limit, max_files, context):
             if matched:
                 hits.append((_fix_name(name), matched))
     hits.sort(key=lambda x: len(x[1]), reverse=True)
-    print("\n===== ZIP 检索：%d 个文件命中（关键词: %s）=====" %
-          (len(hits), ", ".join(keywords)))
-    for name, matched in hits[:max_files]:
-        print("\n■ %s  (命中 %d 处)" % (name, len(matched)))
-        for ln, snip in matched[:limit]:
-            print("   L%d: %s" % (ln, snip[:300]))
+    result["result_count"] = len(hits)
+    result["results"] = [
+        {"path": name, "match_count": len(matched),
+         "matches": [{"line": line, "snippet": snippet[:300]} for line, snippet in matched[:limit]]}
+        for name, matched in hits[:max_files]
+    ]
+    if not as_json:
+        print("\n===== ZIP 检索：%d 个文件命中（关键词: %s）=====" %
+              (len(hits), ", ".join(keywords)))
+        for item in result["results"]:
+            print("\n■ %s  (命中 %d 处)" % (item["path"], item["match_count"]))
+            for match in item["matches"]:
+                print("   L%d: %s" % (match["line"], match["snippet"]))
+    return result
+
+
+def search_error(result, message, as_json):
+    result["error"] = message
+    if not as_json:
+        print(f"[{result['source']}] {message}")
+    return result
 
 
 def _extract_db(index_path, tmpdir):
@@ -236,71 +250,75 @@ def _fts_hits(cur, keywords, limit):
     return hits
 
 
-def search_sqlite(index_path, keywords, max_files, limit):
+def search_sqlite(index_path, keywords, max_files, limit, as_json=False):
+    result = {"source": "sqlite", "index_path": index_path, "keywords": keywords,
+              "result_count": 0, "results": []}
     if not index_path or not os.path.isfile(index_path):
-        print("[sqlite] 未找到 index.zip。请设置 DEVECO_CLI_INDEX 或传入 --index-path。")
-        return
-    tmp = tempfile.mkdtemp(prefix="harmonyos_kb_")
-    db = _extract_db(index_path, tmp)
-    if not db:
-        print("[sqlite] search.db not found in %s" % index_path)
-        shutil.rmtree(tmp, ignore_errors=True)
-        return
-    try:
-        conn = sqlite3.connect(db)
-        cur = conn.cursor()
-        cur.execute("SELECT name FROM sqlite_master WHERE type IN ('table','view')")
-        all_tables = [r[0] for r in cur.fetchall()]
-        tables = [n for n in all_tables
-                  if not n.startswith("sqlite_")
-                  and not n.lower().endswith(("_data", "_idx", "_docsize",
-                                              "_config", "_content"))]
-        if not tables:
-            print("[sqlite] 未发现可查询表")
-            conn.close()
-            return
+        return search_error(result, "未找到 index.zip。请设置 DEVECO_CLI_INDEX 或传入 --index-path。", as_json)
+    with tempfile.TemporaryDirectory(prefix="harmonyos_kb_") as tmp:
+        db = _extract_db(index_path, tmp)
+        if not db:
+            return search_error(result, f"search.db not found in {index_path}", as_json)
+        with closing(sqlite3.connect(db)) as conn:
+            _search_sqlite(conn, result, keywords, max_files, limit, as_json)
+    return result
+
+
+def _search_sqlite(conn, result, keywords, max_files, limit, as_json):
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type IN ('table','view')")
+    all_tables = [r[0] for r in cur.fetchall()]
+    tables = [n for n in all_tables
+              if not n.startswith("sqlite_")
+              and not n.lower().endswith(("_data", "_idx", "_docsize",
+                                          "_config", "_content"))]
+    if not tables:
+        return search_error(result, "未发现可查询表", as_json)
+    if not as_json:
         print("\n===== SQLite 检索（关键词: %s）=====" % ", ".join(keywords))
-        shown, cap = 0, max_files * limit
-        emitted = set()
+    shown, cap = 0, max_files * limit
+    emitted = set()
 
-        def emit(tname, rowid, body, tag=""):
-            nonlocal shown
-            key = (tname, rowid)
-            if key in emitted or shown >= cap:
-                return
-            emitted.add(key)
+    def emit(tname, rowid, body, tag=""):
+        nonlocal shown
+        key = (tname, rowid)
+        if key in emitted or shown >= cap:
+            return
+        emitted.add(key)
+        result["results"].append({"table": tname, "rowid": rowid,
+                                  "match_type": "FTS5" if tag else "LIKE", "snippet": body[:300]})
+        if not as_json:
             print("  [%s%s#%s] %s" % (tname, tag, rowid, body[:300]))
-            shown += 1
+        shown += 1
 
-        fts = _fts_hits(cur, keywords, cap)
-        for rowid, text in sorted(fts.items()):
-            emit("segments_fts", rowid, text or "", " [FTS5]")
+    fts = _fts_hits(cur, keywords, cap)
+    for rowid, text in sorted(fts.items()):
+        emit("segments_fts", rowid, text or "", " [FTS5]")
 
-        for tname in tables:
-            if tname.lower().endswith("_fts"):
-                continue  # FTS 结果已单独输出，避免重复
-            cols = _text_columns(cur, tname)
-            if not cols:
-                continue
-            for kw in keywords:
-                if shown >= cap:
-                    break
-                safe = kw.replace("'", "''")
-                like = " OR ".join("CAST(%s AS TEXT) LIKE '%%%s%%'" % (c, safe)
-                                   for c in cols)
-                try:
-                    cur.execute("SELECT rowid, %s FROM '%s' WHERE %s LIMIT %d" %
-                                (", ".join(cols), tname, like, limit))
-                    for r in cur.fetchall():
-                        body = " | ".join(str(x) for x in r[1:] if x is not None)
-                        emit(tname, r[0], body)
-                except Exception as e:
+    for tname in tables:
+        if tname.lower().endswith("_fts"):
+            continue  # FTS 结果已单独输出，避免重复
+        cols = _text_columns(cur, tname)
+        if not cols:
+            continue
+        for kw in keywords:
+            if shown >= cap:
+                break
+            safe = kw.replace("'", "''")
+            like = " OR ".join("CAST(%s AS TEXT) LIKE '%%%s%%'" % (c, safe)
+                               for c in cols)
+            try:
+                cur.execute("SELECT rowid, %s FROM '%s' WHERE %s LIMIT %d" %
+                            (", ".join(cols), tname, like, limit))
+                for r in cur.fetchall():
+                    body = " | ".join(str(x) for x in r[1:] if x is not None)
+                    emit(tname, r[0], body)
+            except Exception as e:
+                if not as_json:
                     print("  [sqlite] query %s err: %s" % (tname, e))
-        if shown == 0:
-            print("  （无命中）")
-        conn.close()
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+    result["result_count"] = shown
+    if shown == 0 and not as_json:
+        print("  （无命中）")
 
 
 def main():
@@ -312,17 +330,25 @@ def main():
         pass
     ap = argparse.ArgumentParser(description="HarmonyOS 离线知识库检索")
     ap.add_argument("-k", "--keyword", nargs="+", required=True, help="关键词（可多个）")
-    ap.add_argument("--docs-path", default=DEFAULT_DOCS)
-    ap.add_argument("--index-path", default=DEFAULT_INDEX)
+    ap.add_argument("--docs-path")
+    ap.add_argument("--index-path")
     ap.add_argument("--mode", choices=["zip", "sqlite", "both"], default="zip")
     ap.add_argument("--limit", type=int, default=3, help="每文件命中行展示上限")
     ap.add_argument("--max-files", type=int, default=15, help="展示文件数上限")
     ap.add_argument("--context", type=int, default=1, help="命中行上下文行数")
+    ap.add_argument("--format", choices=["text", "json"], default="text")
     args = ap.parse_args()
+    as_json = args.format == "json"
+    searches = []
     if args.mode in ("zip", "both"):
-        search_zip(args.docs_path, args.keyword, args.limit, args.max_files, args.context)
+        path = args.docs_path or _resolve_resource("docs.zip", "DEVECO_CLI_DOCS")
+        searches.append(search_zip(path, args.keyword, args.limit, args.max_files, args.context, as_json=as_json))
     if args.mode in ("sqlite", "both"):
-        search_sqlite(args.index_path, args.keyword, args.max_files, args.limit)
+        path = args.index_path or _resolve_resource("index.zip", "DEVECO_CLI_INDEX")
+        searches.append(search_sqlite(path, args.keyword, args.max_files, args.limit, as_json=as_json))
+    if as_json:
+        print(json.dumps({"keywords": args.keyword, "mode": args.mode, "searches": searches},
+                         ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
