@@ -1,5 +1,7 @@
 import contextlib
 import io
+import json
+import subprocess
 import sqlite3
 import sys
 import tempfile
@@ -96,6 +98,25 @@ class SearchKnowledgeBaseTests(unittest.TestCase):
             result = output.getvalue()
             self.assertIn("[documents#", result)
             self.assertIn("RelationalStore", result)
+
+    def test_cli_json_keeps_results_when_one_resource_is_missing(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            docs_path = root / "docs.zip"
+            with zipfile.ZipFile(docs_path, "w") as archive:
+                archive.writestr("guides/page.md", "# 页面\n页面生命周期\n")
+            completed = subprocess.run(
+                [sys.executable, search_kb.__file__, "-k", "页面", "--mode", "both",
+                 "--format", "json", "--docs-path", str(docs_path),
+                 "--index-path", str(root / "missing.zip")],
+                check=True, capture_output=True, encoding="utf-8",
+            )
+        report = json.loads(completed.stdout)
+        docs, index = report["searches"]
+        self.assertEqual(docs["results"][0]["path"], "guides/page.md")
+        self.assertIn("页面", docs["results"][0]["matches"][0]["snippet"])
+        self.assertEqual(index["result_count"], 0)
+        self.assertIn("DEVECO_CLI_INDEX", index["error"])
 
     def test_missing_resources_have_actionable_errors(self):
         output = io.StringIO()

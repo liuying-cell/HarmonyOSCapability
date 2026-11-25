@@ -22,7 +22,7 @@
 无法自动定位时，显式设置环境变量或传参，不要在脚本中写死个人机器路径。
 
 ## 一、docs.zip —— 文档正文库
-鸿蒙开发的正文知识源。新版 13,836 个 Markdown 文档，分 guides / harmonyos-references / release-notes / faq / best-practices / changelogs 六类（详见上表）。`search_kb.py --mode zip` 在全部 `.md` 内做关键词（支持中文）检索，返回命中文件路径与上下文片段。
+鸿蒙开发的正文知识源。新版 13,836 个 Markdown 文档，分 guides / harmonyos-references / release-notes / faq / best-practices / changelogs 六类。`search_kb.py --mode zip` 在全部 `.md` 内做关键词（支持中文）检索，返回命中文件路径与上下文片段。
 
 ## 二、index.zip —— 检索索引库
 - `search.db`：SQLite 全文索引，indexVersion 1.9.1；新版 22,801 个切分片段（旧版 23,568）
@@ -34,7 +34,7 @@
 ## 三、检索脚本用法
 ```
 python scripts/search_kb.py -k "RelationalStore"
-python scripts/search_kb.py -k "页面" "Page" --mode both --max-files 20
+python scripts/search_kb.py -k "页面" "Page" --mode both --max-files 20 --format json
 python scripts/search_kb.py -k "ArkTS" --docs-path "D:/path/docs.zip" --index-path "D:/path/index.zip"
 ```
 参数：
@@ -45,6 +45,7 @@ python scripts/search_kb.py -k "ArkTS" --docs-path "D:/path/docs.zip" --index-pa
 - `--limit`：每个文件命中行展示上限，默认 3
 - `--max-files`：展示文件数上限，默认 15
 - `--context`：命中行上下文行数，默认 1
+- `--format text|json`：默认为文本。JSON 的 `searches` 按来源提供 `result_count`、`results` 和缺少资源时的 `error`。消费 JSON 时请逐个检查来源。
 
 > 若资源迁移，用 `--docs-path` / `--index-path` 指向新位置即可，无需改动技能其它部分。
 
